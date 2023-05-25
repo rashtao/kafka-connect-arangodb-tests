@@ -19,24 +19,9 @@ docker-compose up
 
 Check UI at [http://localhost:8080](http://localhost:8080).
 
-Create ArangoDB Sink connector:
+Create Kafka topic:
 ```shell
-curl --request POST \
-    --url "http://localhost:18083/connectors" \
-    --header 'content-type: application/json' \
-    --data '{
-        "name": "demo-arangodb-connector",
-        "config": {
-            "connector.class": "io.github.jaredpetersen.kafkaconnectarangodb.sink.ArangoDbSinkConnector",
-            "tasks.max": "1",
-            "topics": "stream.products",
-            "arangodb.host": "172.28.0.1",
-            "arangodb.port": 8529,
-            "arangodb.user": "root",
-            "arangodb.password": "test",
-            "arangodb.database.name": "_system"
-        }
-    }' | jq
+~/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092,localhost:9192,localhost:9292, --topic stream.products --create --partitions 3 --replication-factor 1
 ```
 
 Publish data to Kafka:
@@ -64,7 +49,41 @@ curl --request POST \
     }' | jq
 ```
 
+Create ArangoDB Sink connector:
+```shell
+curl --request POST \
+    --url "http://localhost:18083/connectors" \
+    --header 'content-type: application/json' \
+    --data '{
+        "name": "demo-arangodb-connector",
+        "config": {
+            "connector.class": "io.github.jaredpetersen.kafkaconnectarangodb.sink.ArangoDbSinkConnector",
+            "tasks.max": "2",
+            "topics": "stream.products",
+            "arangodb.host": "172.28.0.1",
+            "arangodb.port": 8529,
+            "arangodb.user": "root",
+            "arangodb.password": "test",
+            "arangodb.database.name": "_system"
+        }
+    }' | jq
+```
+
 Observe documents in collections `products` in `_system` database:
 ```shell
 curl -u root:test http://localhost:8529/_api/cursor -d '{"query":"FOR d IN products RETURN d"}' | jq
+```
+
+Check if any document is missing:
+```AQL
+LET count = (   
+    FOR d IN products 
+    COLLECT WITH COUNT INTO c
+    RETURN c
+)[0]
+
+LET doc = (
+    DOCUMENT(products, TO_STRING(count - 1))
+)
+RETURN {count, doc}
 ```
