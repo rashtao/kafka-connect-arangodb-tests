@@ -16,10 +16,12 @@ Start Kafka cluster with Connect:
 docker-compose up
 ```
 
+Check UI at [http://localhost:8080](http://localhost:8080).
+
 Create connector:
 ```shell
 curl --request POST \
-    --url "http://127.0.0.1:18083/connectors" \
+    --url "http://localhost:18083/connectors" \
     --header 'content-type: application/json' \
     --data '{
         "name": "demo-arangodb-connector",

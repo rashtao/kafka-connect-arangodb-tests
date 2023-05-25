@@ -102,6 +102,16 @@ services:
     volumes:
       - $PWD/data/kafka-connect-arangodb:/usr/share/java/kafka-connect-arangodb
 
+  redpanda-console:
+    image: docker.io/redpandadata/console:latest
+    ports:
+      - '8080:8080'
+    environment:
+      KAFKA_BROKERS: kafka-0:29092,kafka-1:29092,kafka-2:29092
+      CONNECT_ENABLED: 'true'
+      CONNECT_CLUSTERS_NAME: kafka-connect
+      CONNECT_CLUSTERS_URL: http://kafka-connect-1:8083
+
 networks:
   default:
     external:
