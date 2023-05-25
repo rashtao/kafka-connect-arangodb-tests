@@ -5,11 +5,12 @@ Start db:
 ./start_db.sh
 ```
 
-Create collections `airports` and `flights` in `_system` database:
+Create collections `products` in `_system` database:
 ```shell
-curl -u root:test http://localhost:8529/_api/collection -d '{"name":"airports"}' | jq
-curl -u root:test http://localhost:8529/_api/collection -d '{"name":"flights"}' | jq
+curl -u root:test http://localhost:8529/_api/collection -d '{"name": "products"}' | jq
 ```
+
+Check UI at [http://localhost:8529](http://localhost:8529).
 
 Start Kafka cluster with Connect:
 ```shell
@@ -18,7 +19,7 @@ docker-compose up
 
 Check UI at [http://localhost:8080](http://localhost:8080).
 
-Create connector:
+Create ArangoDB Sink connector:
 ```shell
 curl --request POST \
     --url "http://localhost:18083/connectors" \
@@ -28,7 +29,7 @@ curl --request POST \
         "config": {
             "connector.class": "io.github.jaredpetersen.kafkaconnectarangodb.sink.ArangoDbSinkConnector",
             "tasks.max": "1",
-            "topics": "stream.airports,stream.flights",
+            "topics": "stream.products",
             "arangodb.host": "172.28.0.1",
             "arangodb.port": 8529,
             "arangodb.user": "root",
@@ -40,15 +41,30 @@ curl --request POST \
 
 Publish data to Kafka:
 ```shell
-~/kafka/bin/kafka-console-producer.sh --broker-list localhost:9092,localhost:9192,localhost:9292 --topic stream.airports --property "parse.key=true" --property "key.separator=|"
-{"id":"PDX"}|{"airport":"Portland International Airport","city":"Portland","state":"OR","country":"USA","lat":45.58872222,"long":-122.5975}
-{"id":"BOI"}|{"airport":"Boise Airport","city":"Boise","state":"ID","country":"USA","lat":43.56444444,"long":-116.2227778}
-{"id":"HNL"}|{"airport":"Daniel K. Inouye International Airport","city":"Honolulu","state":"HI","country":"USA","lat":21.31869111,"long":-157.9224072}
-{"id":"KOA"}|{"airport":"Ellison Onizuka Kona International Airport at Keāhole","city":"Kailua-Kona","state":"HI","country":"USA","lat":19.73876583,"long":-156.0456314}
+curl --request POST \
+    --url "http://localhost:18083/connectors" \
+    --header 'content-type: application/json' \
+    --data '{
+        "name": "datagen-products",
+        "config": {
+          "connector.class": "io.confluent.kafka.connect.datagen.DatagenConnector",
+          "kafka.topic": "stream.products",
+          "quickstart": "product",
+          "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+          "key.converter.schemas.enable": "false",
+          "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+          "value.converter.schemas.enable": "false",
+          "max.interval": 1000,
+          "iterations": 10000000,
+          "tasks.max": "1",
+          "transforms": "ValueToKey",
+          "transforms.ValueToKey.type": "org.apache.kafka.connect.transforms.ValueToKey",
+          "transforms.ValueToKey.fields": "id"
+        }
+    }' | jq
 ```
 
-Observe documents in collections `airports` and `flights` in `_system` database:
+Observe documents in collections `products` in `_system` database:
 ```shell
-curl -u root:test http://localhost:8529/_api/cursor -d '{"query":"FOR d IN airports RETURN d"}' | jq
-curl -u root:test http://localhost:8529/_api/cursor -d '{"query":"FOR d IN flights RETURN d"}' | jq
+curl -u root:test http://localhost:8529/_api/cursor -d '{"query":"FOR d IN products RETURN d"}' | jq
 ```
