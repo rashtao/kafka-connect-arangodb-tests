@@ -1,8 +1,13 @@
 # kafka-connect-arangodb-tests
 
+Create Docker network:
+```shell
+./docker/create_network.sh
+```
+
 Start db:
 ```shell
-./start_db.sh
+./docker/start_db.sh
 ```
 
 Create collections `products` in `_system` database:
@@ -14,7 +19,7 @@ Check UI at [http://localhost:8529](http://localhost:8529).
 
 Start Kafka cluster with Connect:
 ```shell
-docker-compose up
+docker-compose -f ./docker/docker-compose.yml up
 ```
 
 Check UI at [http://localhost:8080](http://localhost:8080).

@@ -17,7 +17,6 @@ EXTENDED_NAMES=${EXTENDED_NAMES:=false}
 
 STARTER_DOCKER_IMAGE=docker.io/arangodb/arangodb-starter:latest
 GW=172.28.0.1
-docker network create arangodb --subnet 172.28.0.0/16
 
 # exit when any command fails
 set -e
