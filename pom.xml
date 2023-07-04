@@ -59,6 +59,13 @@
             <groupId>org.awaitility</groupId>
             <artifactId>awaitility</artifactId>
             <version>4.2.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.sourcelab</groupId>
+            <artifactId>kafka-connect-client</artifactId>
+            <version>4.0.3</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
