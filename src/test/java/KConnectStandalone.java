@@ -23,7 +23,6 @@ import org.apache.kafka.connect.runtime.Worker;
 import org.apache.kafka.connect.runtime.isolation.Plugins;
 import org.apache.kafka.connect.runtime.rest.RestServer;
 import org.apache.kafka.connect.runtime.rest.entities.ConnectorInfo;
-import org.apache.kafka.connect.runtime.rest.entities.ConnectorStateInfo;
 import org.apache.kafka.connect.runtime.standalone.StandaloneConfig;
 import org.apache.kafka.connect.runtime.standalone.StandaloneHerder;
 import org.apache.kafka.connect.storage.MemoryOffsetBackingStore;
@@ -32,12 +31,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
-final class ConnectRunner {
-    private static final Logger log = LoggerFactory.getLogger(ConnectRunner.class);
+final class KConnectStandalone implements KConnect {
+    private static final Logger log = LoggerFactory.getLogger(KConnectStandalone.class);
 
     private final Path pluginDir;
     private final String bootstrapServers;
@@ -45,13 +45,14 @@ final class ConnectRunner {
     private Herder herder;
     private Connect connect;
 
-    ConnectRunner(final Path pluginDir,
-                  final String bootstrapServers) {
+    KConnectStandalone(final Path pluginDir,
+                       final String bootstrapServers) {
         this.pluginDir = pluginDir;
         this.bootstrapServers = bootstrapServers;
     }
 
-    void start() {
+    @Override
+    public void start() {
         Map<String, String> workerProps = new HashMap<>();
         workerProps.put("bootstrap.servers", bootstrapServers);
         workerProps.put("plugin.path", pluginDir.toString());
@@ -79,15 +80,21 @@ final class ConnectRunner {
         rest.initializeServer();
 
         connect = new Connect(herder, rest);
-
         connect.start();
     }
 
-    void createConnector(final Map<String, String> config) throws ExecutionException, InterruptedException {
+    @Override
+    public void stop() {
+        connect.stop();
+        connect.awaitStop();
+    }
+
+    @Override
+    public void createConnector(final Map<String, String> config) {
         FutureCallback<Herder.Created<ConnectorInfo>> cb = new FutureCallback<>(
                 (error, info) -> {
                     if (error != null) {
-                        log.error("Failed to create job");
+                        log.error("Failed to execute job");
                     } else {
                         log.info("Created connector {}", info.result().name());
                     }
@@ -96,18 +103,47 @@ final class ConnectRunner {
                 config.get(ConnectorConfig.NAME_CONFIG),
                 config, false, cb
         );
-        cb.get();
+        awaitFuture(cb);
     }
 
-    ConnectorStateInfo connectorState(final String connectorName) {
-        return herder.connectorStatus(connectorName);
+    @Override
+    public String getConnectorState(final String connectorName) {
+        return herder.connectorStatus(connectorName).connector().state();
     }
 
-    void stop() {
-        connect.stop();
+    @Override
+    public Collection<String> getConnectors() {
+        return herder.connectors();
     }
 
-    void awaitStop() {
-        connect.awaitStop();
+    @Override
+    public void deleteConnector(String name) {
+        final FutureCallback<Herder.Created<ConnectorInfo>> cb = new FutureCallback<>(
+                (error, info) -> {
+                    if (error != null) {
+                        log.error("Failed to execute job");
+                    } else {
+                        log.info("Deleted connector {}", name);
+                    }
+                });
+        herder.deleteConnectorConfig(name, cb);
+        awaitFuture(cb);
     }
+
+    @Override
+    public String toString() {
+        return "standalone";
+    }
+
+    private void awaitFuture(FutureCallback<?> future) {
+        try {
+            future.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        } catch (ExecutionException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 }

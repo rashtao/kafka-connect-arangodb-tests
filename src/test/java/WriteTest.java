@@ -8,14 +8,11 @@ import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
-import org.sourcelab.kafka.connect.apiclient.Configuration;
-import org.sourcelab.kafka.connect.apiclient.KafkaConnectClient;
-import org.sourcelab.kafka.connect.apiclient.request.dto.NewConnectorDefinition;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
@@ -24,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 
-public class ClusterTest {
+public class WriteTest {
 
     private static final String ADB_HOST = "172.28.0.1";
     private static final int ADB_PORT = 8529;
@@ -32,11 +29,29 @@ public class ClusterTest {
     private static final String CONNECTOR_NAME = "my-connector-standalone";
     private static final String CONNECTOR_CLASS = "io.github.jaredpetersen.kafkaconnectarangodb.sink.ArangoDbSinkConnector";
 
+    private static final List<KConnect> K_CONNECTS = Arrays.asList(
+            new KConnectStandalone(Paths.get("data/kafka-connect-arangodb/kafka-connect-arangodb-1.0.7.jar"), BOOTSTRAP_SERVERS_CONFIG),
+            new KConnectCluster()
+    );
+
     private String topicName;
     private ArangoCollection col;
     private AdminClient adminClient;
     private KafkaProducer<JsonNode, JsonNode> producer;
 
+    @BeforeAll
+    static void setUpAll() {
+        K_CONNECTS.forEach(KConnect::start);
+    }
+
+    @AfterAll
+    static void tearDownAll() {
+        K_CONNECTS.forEach(KConnect::stop);
+    }
+
+    public static List<KConnect> kconnects() {
+        return K_CONNECTS;
+    }
 
     @BeforeEach
     void setUp() throws ExecutionException, InterruptedException {
@@ -74,14 +89,10 @@ public class ClusterTest {
         producer.close();
     }
 
-    @Test
     @Timeout(30)
-    void testBasicDelivery() throws ExecutionException, InterruptedException {
-        KafkaConnectClient client = new KafkaConnectClient(new Configuration("http://localhost:18083"));
-        if (client.getConnectors().contains(CONNECTOR_NAME)) {
-            client.deleteConnector(CONNECTOR_NAME);
-        }
-
+    @ParameterizedTest //(name = "{index}")
+    @MethodSource("kconnects")
+    void testBasicDelivery(KConnect kConnect) throws ExecutionException, InterruptedException {
         Map<String, String> config = new HashMap<>();
         config.put("name", CONNECTOR_NAME);
         config.put("connector.class", CONNECTOR_CLASS);
@@ -93,14 +104,9 @@ public class ClusterTest {
         config.put("arangodb.password", "test");
         config.put("arangodb.database.name", "_system");
 
-        client.addConnector(NewConnectorDefinition.newBuilder()
-                .withName(CONNECTOR_NAME)
-                .withConfig(config)
-                .build());
-
-        assertThat(client.getConnectors()).contains(CONNECTOR_NAME);
-        assertThat(client.getConnectorStatus(CONNECTOR_NAME).getConnector().get("state"))
-                .isEqualTo("RUNNING");
+        kConnect.createConnector(config);
+        assertThat(kConnect.getConnectors()).contains(CONNECTOR_NAME);
+        assertThat(kConnect.getConnectorState(CONNECTOR_NAME)).isEqualTo("RUNNING");
 
         assertThat(col.count().getCount()).isEqualTo(0L);
 
@@ -116,8 +122,8 @@ public class ClusterTest {
                 .atMost(Duration.ofSeconds(15)).pollInterval(Duration.ofMillis(100))
                 .until(() -> col.count().getCount() >= 1_000L);
 
-        client.deleteConnector(CONNECTOR_NAME);
-        assertThat(client.getConnectors()).doesNotContain(CONNECTOR_NAME);
+        kConnect.deleteConnector(CONNECTOR_NAME);
+        assertThat(kConnect.getConnectors()).doesNotContain(CONNECTOR_NAME);
     }
 
 }
