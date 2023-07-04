@@ -4,10 +4,21 @@ import org.sourcelab.kafka.connect.apiclient.request.dto.NewConnectorDefinition;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Objects;
 
-public class KConnectCluster implements KConnect {
-    private final static String KAFKA_CONNECT_HOST = "http://localhost:18083";
-    private final KafkaConnectClient client = new KafkaConnectClient(new Configuration(KAFKA_CONNECT_HOST));
+enum ClusterKafkaConnectDeployment implements KafkaConnectDeployment {
+    INSTANCE;
+
+    private final String kafkaBootstrapServers;
+    private final KafkaConnectClient client;
+
+    ClusterKafkaConnectDeployment() {
+        kafkaBootstrapServers = KafkaDeployment.getKafkaBootstrapServers();
+        Objects.requireNonNull(kafkaBootstrapServers);
+        String kafkaConnectHost = KafkaConnectDeployment.getKafkaConnectHost();
+        Objects.requireNonNull(kafkaConnectHost);
+        client = new KafkaConnectClient(new Configuration(kafkaConnectHost));
+    }
 
     @Override
     public void start() {
@@ -17,6 +28,11 @@ public class KConnectCluster implements KConnect {
     @Override
     public void stop() {
         // no-op
+    }
+
+    @Override
+    public String getBootstrapServers() {
+        return kafkaBootstrapServers;
     }
 
     @Override
@@ -44,11 +60,6 @@ public class KConnectCluster implements KConnect {
     @Override
     public void deleteConnector(String name) {
         client.deleteConnector(name);
-    }
-
-    @Override
-    public String toString() {
-        return "cluster";
     }
 
 }

@@ -9,10 +9,7 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.*;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
 
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
@@ -25,14 +22,9 @@ public class WriteTest {
 
     private static final String ADB_HOST = "172.28.0.1";
     private static final int ADB_PORT = 8529;
-    private static final String BOOTSTRAP_SERVERS_CONFIG = "127.0.0.1:9092,127.0.0.1:9192,127.0.0.1:9292";
     private static final String CONNECTOR_NAME = "my-connector-standalone";
     private static final String CONNECTOR_CLASS = "io.github.jaredpetersen.kafkaconnectarangodb.sink.ArangoDbSinkConnector";
-
-    private static final List<KConnect> K_CONNECTS = Arrays.asList(
-            new KConnectStandalone(Paths.get("data/kafka-connect-arangodb/kafka-connect-arangodb-1.0.7.jar"), BOOTSTRAP_SERVERS_CONFIG),
-            new KConnectCluster()
-    );
+    private static KafkaConnectDeployment kafkaConnect;
 
     private String topicName;
     private ArangoCollection col;
@@ -41,16 +33,13 @@ public class WriteTest {
 
     @BeforeAll
     static void setUpAll() {
-        K_CONNECTS.forEach(KConnect::start);
+        kafkaConnect = KafkaConnectDeployment.getInstance();
+        kafkaConnect.start();
     }
 
     @AfterAll
     static void tearDownAll() {
-        K_CONNECTS.forEach(KConnect::stop);
-    }
-
-    public static List<KConnect> kconnects() {
-        return K_CONNECTS;
+        kafkaConnect.stop();
     }
 
     @BeforeEach
@@ -70,12 +59,12 @@ public class WriteTest {
         col.create();
 
         Properties adminClientConfig = new Properties();
-        adminClientConfig.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP_SERVERS_CONFIG);
+        adminClientConfig.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConnect.getBootstrapServers());
         adminClient = AdminClient.create(adminClientConfig);
         adminClient.createTopics(Collections.singletonList(new NewTopic(topicName, 2, (short) 1))).all().get();
 
         Map<String, Object> producerProps = new HashMap<>();
-        producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP_SERVERS_CONFIG);
+        producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConnect.getBootstrapServers());
         producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.connect.json.JsonSerializer");
         producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.connect.json.JsonSerializer");
         producerProps.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, "1");
@@ -89,10 +78,9 @@ public class WriteTest {
         producer.close();
     }
 
+    @Test
     @Timeout(30)
-    @ParameterizedTest //(name = "{index}")
-    @MethodSource("kconnects")
-    void testBasicDelivery(KConnect kConnect) throws ExecutionException, InterruptedException {
+    void testBasicDelivery() throws ExecutionException, InterruptedException {
         Map<String, String> config = new HashMap<>();
         config.put("name", CONNECTOR_NAME);
         config.put("connector.class", CONNECTOR_CLASS);
@@ -104,9 +92,9 @@ public class WriteTest {
         config.put("arangodb.password", "test");
         config.put("arangodb.database.name", "_system");
 
-        kConnect.createConnector(config);
-        assertThat(kConnect.getConnectors()).contains(CONNECTOR_NAME);
-        assertThat(kConnect.getConnectorState(CONNECTOR_NAME)).isEqualTo("RUNNING");
+        kafkaConnect.createConnector(config);
+        assertThat(kafkaConnect.getConnectors()).contains(CONNECTOR_NAME);
+        assertThat(kafkaConnect.getConnectorState(CONNECTOR_NAME)).isEqualTo("RUNNING");
 
         assertThat(col.count().getCount()).isEqualTo(0L);
 
@@ -122,8 +110,8 @@ public class WriteTest {
                 .atMost(Duration.ofSeconds(15)).pollInterval(Duration.ofMillis(100))
                 .until(() -> col.count().getCount() >= 1_000L);
 
-        kConnect.deleteConnector(CONNECTOR_NAME);
-        assertThat(kConnect.getConnectors()).doesNotContain(CONNECTOR_NAME);
+        kafkaConnect.deleteConnector(CONNECTOR_NAME);
+        assertThat(kafkaConnect.getConnectors()).doesNotContain(CONNECTOR_NAME);
     }
 
 }

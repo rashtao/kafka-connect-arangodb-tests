@@ -31,30 +31,28 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
-final class KConnectStandalone implements KConnect {
-    private static final Logger log = LoggerFactory.getLogger(KConnectStandalone.class);
+enum StandaloneKafkaConnectDeployment implements KafkaConnectDeployment {
+    INSTANCE;
 
-    private final Path pluginDir;
-    private final String bootstrapServers;
+    private static final Logger log = LoggerFactory.getLogger(StandaloneKafkaConnectDeployment.class);
 
+    private final KafkaDeployment kafka = KafkaDeployment.getInstance();
+    private final Path pluginDir = Paths.get("data/kafka-connect-arangodb/kafka-connect-arangodb-1.0.7.jar");
     private Herder herder;
     private Connect connect;
 
-    KConnectStandalone(final Path pluginDir,
-                       final String bootstrapServers) {
-        this.pluginDir = pluginDir;
-        this.bootstrapServers = bootstrapServers;
-    }
-
     @Override
     public void start() {
+        kafka.start();
+
         Map<String, String> workerProps = new HashMap<>();
-        workerProps.put("bootstrap.servers", bootstrapServers);
+        workerProps.put("bootstrap.servers", kafka.getBootstrapServers());
         workerProps.put("plugin.path", pluginDir.toString());
         workerProps.put("offset.storage.file.filename", "");
         workerProps.put("key.converter", "org.apache.kafka.connect.json.JsonConverter");
@@ -86,7 +84,13 @@ final class KConnectStandalone implements KConnect {
     @Override
     public void stop() {
         connect.stop();
+        kafka.stop();
         connect.awaitStop();
+    }
+
+    @Override
+    public String getBootstrapServers() {
+        return kafka.getBootstrapServers();
     }
 
     @Override
@@ -128,11 +132,6 @@ final class KConnectStandalone implements KConnect {
                 });
         herder.deleteConnectorConfig(name, cb);
         awaitFuture(cb);
-    }
-
-    @Override
-    public String toString() {
-        return "standalone";
     }
 
     private void awaitFuture(FutureCallback<?> future) {
