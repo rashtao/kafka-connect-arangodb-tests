@@ -4,7 +4,8 @@ import java.util.Map;
 public interface KafkaConnectDeployment {
 
     static KafkaConnectDeployment getInstance() {
-        if (getKafkaConnectHost() != null) {
+        String kafkaConnectHost = getKafkaConnectHost();
+        if (kafkaConnectHost != null && !kafkaConnectHost.isEmpty()) {
             return ClusterKafkaConnectDeployment.INSTANCE;
         } else {
             return StandaloneKafkaConnectDeployment.INSTANCE;

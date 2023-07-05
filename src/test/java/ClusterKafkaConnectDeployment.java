@@ -15,8 +15,10 @@ enum ClusterKafkaConnectDeployment implements KafkaConnectDeployment {
     ClusterKafkaConnectDeployment() {
         kafkaBootstrapServers = KafkaDeployment.getKafkaBootstrapServers();
         Objects.requireNonNull(kafkaBootstrapServers);
+        assert !kafkaBootstrapServers.isEmpty();
         String kafkaConnectHost = KafkaConnectDeployment.getKafkaConnectHost();
         Objects.requireNonNull(kafkaConnectHost);
+        assert !kafkaConnectHost.isEmpty();
         client = new KafkaConnectClient(new Configuration(kafkaConnectHost));
     }
 

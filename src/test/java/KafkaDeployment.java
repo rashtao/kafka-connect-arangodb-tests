@@ -1,7 +1,8 @@
 public interface KafkaDeployment {
 
     static KafkaDeployment getInstance() {
-        if (getKafkaBootstrapServers() != null) {
+        String kafkaBootstrapServers = getKafkaBootstrapServers();
+        if (kafkaBootstrapServers != null && !kafkaBootstrapServers.isEmpty()) {
             return ExternalKafkaDeployment.INSTANCE;
         } else {
             return StandaloneKafkaDeployment.INSTANCE;

@@ -4,7 +4,9 @@ enum ExternalKafkaDeployment implements KafkaDeployment {
     INSTANCE;
 
     ExternalKafkaDeployment() {
-        Objects.requireNonNull(getBootstrapServers());
+        String kafkaBootstrapServers = getBootstrapServers();
+        Objects.requireNonNull(kafkaBootstrapServers);
+        assert !kafkaBootstrapServers.isEmpty();
     }
 
     @Override
