@@ -96,6 +96,16 @@ RETURN {count, doc}
 
 ## Integration Tests
 
+Start db:
+```shell
+./docker/start_db.sh
+```
+
+Start Kafka and Kafka Connect:
+```shell
+./docker/start_kafka.sh
+```
+
 - standalone Kafka Cluster
 - standalone Kafka Connect
 ```shell
@@ -105,11 +115,11 @@ mvn test
 - external Kafka Cluster
 - standalone Kafka Connect
 ```shell
-mvn test -Dkafka.bootstrap.servers=127.0.0.1:9092,127.0.0.1:9192,127.0.0.1:9292
+mvn test -Dkafka.bootstrap.servers=172.28.11.1:9092
 ```
 
 - external Kafka Cluster
 - external Kafka Connect
 ```shell
-mvn test -Dkafka.bootstrap.servers=127.0.0.1:9092,127.0.0.1:9192,127.0.0.1:9292 -Dkafka.connect.host=http://localhost:18083
+mvn test -Dkafka.bootstrap.servers=172.28.11.1:9092 -Dkafka.connect.host=http://172.28.11.11:8083
 ```
