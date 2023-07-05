@@ -29,6 +29,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+      - name: Create Network
+        run: ./docker/create_network.sh
       - name: Start Kafka
         run: ./docker/start_kafka.sh
       - name: Start Database
